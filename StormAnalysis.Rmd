@@ -1,0 +1,142 @@
+---
+title: "Storm Data Analysis"
+author: "Daniel Escasa"
+date: "3/2/2021"
+output:
+  html_document:
+    df_print: paged
+---
+# Synopsis
+
+# Data Processing
+
+# Results
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+loadLib <- function(libName) {
+     if(!require(libName)) {
+          message(paste("Installing ", libName))
+          install.packages(libName)
+     }
+}
+
+loadLib("plyr")
+library(plyr)
+
+loadLib("dplyr")
+library(dplyr)
+
+loadLib("R.utils")
+library(R.utils)
+
+loadLib("data.table")
+library(data.table)
+
+loadLib("knitr")
+library(knitr)
+
+loadLib("sp")
+library(sp)
+
+loadLib('numform')
+library(numform)
+```
+
+```{r}
+if (!file.exists("StormData.bz2")) {
+     message("Downloading dataset")
+     download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",
+     destfile = "StormData.bz2", 
+     method   = "internal",
+     mode     = "wb")
+}
+```
+```{r cache=TRUE}
+stormData <- fread("StormData.bz2")
+```
+```{r}
+summary(stormData)
+```
+Function to convert the one-character PROPDMGEXP or CROPDMGEXP to
+a power of ten.
+```{r}
+damageMultiplier <- function(xponent) {
+  return(switch(toupper(xponent),
+                "?" = 1,
+                "1" = 1,
+                "2" = 10,
+                "3" = 100,
+                "4" = 1e+03,
+                "5" = 1e+04,
+                "6" = 1e+05,
+                "7" = 1e+06,
+                "8" = 1e+07,
+                "H" = 100,
+                "K" = 1000,
+                "M" = 1e+06,
+                "B" = 1e+09,
+                1))
+}
+```
+Extract only the relevant columns.
+```{r}
+colsOfInterest <- stormData[, c('EVTYPE', 
+                                'FATALITIES', 
+                                'INJURIES', 
+                                'PROPDMG', 
+                                'PROPDMGEXP', 
+                                'CROPDMG', 
+                                'CROPDMGEXP')]
+```
+Create new columns for Property and Crop Damage
+```{r}
+colsOfInterest <- colsOfInterest %>%
+  mutate("PropertyDamage" = colsOfInterest$PROPDMG * mapply(damageMultiplier, colsOfInterest$PROPDMGEXP)) %>%
+  mutate("CropDamage"     = colsOfInterest$CROPDMG * mapply(damageMultiplier, colsOfInterest$CROPDMGEXP))
+
+```
+
+```{r}
+head(colsOfInterest[order(colsOfInterest$PropertyDamage, decreasing = TRUE), 
+     c("EVTYPE", "PropertyDamage"), ], 10)
+head(colsOfInterest[order(colsOfInterest$CropDamage, decreasing = TRUE), 
+     c("EVTYPE", "CropDamage"), ], 10)
+```
+
+```{r}
+head(colsOfInterest[order(colsOfInterest$FATALITIES, decreasing = T), 
+     c("EVTYPE", "FATALITIES"), ], 10)
+head(colsOfInterest[order(colsOfInterest$INJURIES, decreasing = T), 
+     c("EVTYPE", "INJURIES"), ], 10)
+```
+```{r}
+maxFatalities <- head(colsOfInterest[order(colsOfInterest$FATALITIES, decreasing = T), 
+		      c("EVTYPE", "FATALITIES")],1)
+sprintf("Most fatalities from %s, fatalities: %s", 
+	maxFatalities[, "EVTYPE"], 
+	format(maxFatalities[, "FATALITIES"], scientific = F, big.mark = ","))
+
+maxInjuries <- head(colsOfInterest[order(colsOfInterest$INJURIES, decreasing = T), 
+		    c("EVTYPE", "INJURIES")],1)
+sprintf("Most injuries from %s, injuries: %s", 
+	maxFatalities[, "EVTYPE"], 
+	format(maxInjuries[, "INJURIES"], scientific = F, big.mark = ","))
+```
+
+```{r}
+maxCrop <- head(colsOfInterest[order(colsOfInterest$CropDamage, decreasing = T), 
+		c("EVTYPE", "CropDamage")], 1)
+sprintf("Most disastrous crop-related event is %s, crop damage (in billions) is $%s", 
+	maxCrop[, "EVTYPE"], 
+	format(maxCrop[, "CropDamage"] / 1000000, scientific = F, big.mark = ","))
+
+maxProperty <- head(colsOfInterest[order(colsOfInterest$PropertyDamage, decreasing = T), 
+		    c("EVTYPE", "PropertyDamage")], 1)
+sprintf("Most disastrous property-related event is %s, property damage (in billions) is $%s", 
+	maxProperty[, "EVTYPE"], 
+	format(maxProperty[, "PropertyDamage"] / 1000000, scientific = F, big.mark = ","))
+```
