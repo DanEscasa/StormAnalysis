@@ -14,13 +14,10 @@ output:
   ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-<<<<<<< HEAD
 
 First install the required libraries if needed, and load them.
 ```{r, loadLibs, results='hide'} 
-=======
-```{r load libraries, echo=FALSE}
->>>>>>> 2def3206dc302a717799d8e5d7c6bc571d09663a
+
 if(!require("dplyr")) {
   install.packages("dplyr")
 }
@@ -59,18 +56,10 @@ if (!file.exists("StormData.bz2")) {
      mode     = "wb")
 }
 ```
-<<<<<<< HEAD
 ```{r load-data, cache=TRUE}
 message("Loading dataset. This could take a while…")
 stormData <- fread("StormData.bz2")
 ```
-
-=======
-```{r cache=TRUE}
-message("Loading dataset. This could take a while…")
-stormData <- fread("StormData.bz2")
-```
->>>>>>> 2def3206dc302a717799d8e5d7c6bc571d09663a
 Function to convert the one-character PROPDMGEXP or CROPDMGEXP to
 a power of ten.
 ```{r aux-function}
@@ -103,12 +92,11 @@ colsOfInterest <- stormData[, c('EVTYPE',
                                 'CROPDMG', 
                                 'CROPDMGEXP')]
 ```
-<<<<<<< HEAD
 
 Create new columns for Property and Crop Damage. Also exclude rows with zero values for INJURIES, FATALITIES, PropertyDamage, *and* CropDamage.
 ```{r, create-new-cols}
 colsOfInterest <- colsOfInterest %>%
-  mutate("EVTYPE"         = toupper(trimws(EVTYPE, "b"))) %>%
+  mutate("EVTYPE"         = toupper(trimws("EVTYPE", "b"))) %>%
   mutate("PropertyDamage" = colsOfInterest$PROPDMG * mapply(damageMultiplier, colsOfInterest$PROPDMGEXP)) %>%
   mutate("CropDamage"     = colsOfInterest$CROPDMG * mapply(damageMultiplier, colsOfInterest$CROPDMGEXP)) %>%
   subset(!(INJURIES == 0 & FATALITIES == 0 & PropertyDamage == 0 & CropDamage == 0))
@@ -116,56 +104,19 @@ colsOfInterest <- colsOfInterest %>%
 
 The last line above reduces the size of the dataset from `r f_comma(dim(stormData)[1], mark = ",")` to `r f_comma(dim(colsOfInterest)[1], mark = ",")` rows.
 
-A cursory examination of the original `StormData` dataset revealed questionable entries in the `EVTYPE` column, e.g., misspellings or leading or trailing spaces. The `trimws()` function above takes care of the latter. As to the other issues: according to the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf), there are 48 standard Event Types. However, the dataset contains `r f_comma(length(unique(colsOfInterest$EVTYPE)), mark = ",")` unique entries.
+A cursory examination of the original `StormData` dataset revealed questionable entries in the `EVTYPE` column, e.g., misspellings or leading or trailing spaces. The `trimws()` function above takes care of the latter. As to the other issues: according to the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf), there are 48 standard Event Types. However, the dataset contains `r f_comma(length(unique(colsOfInterest)), mark = ",")` unique entries.
 
 Below is the table from the aforementioned NWS documentation:
 ![Storm Data Event Table](images/StormDataEventTable.png)
 
 And here are the first 20 entries of the `EVTYPE` column with "HURRICANE" entries:
 ```{r}
-head(colsOfInterest[grep("HURRICANE*", colsOfInterest$EVTYPE), "EVTYPE"], 20)
-=======
-Create new columns for Property and Crop Damage. Also exclude rows with zero values for INJURIES, FATALITIES, PropertyDamage, *and* CropDamage.
-```{r}
-colsOfInterest <- colsOfInterest %>%
-  mutate("EVTYPE" = toupper(trimws(EVTYPE, "b"))) %>%
-  mutate("PropertyDamage" = colsOfInterest$PROPDMG * mapply(damageMultiplier, colsOfInterest$PROPDMGEXP)) %>%
-  mutate("CropDamage"     = colsOfInterest$CROPDMG * mapply(damageMultiplier, colsOfInterest$CROPDMGEXP)) %>%
-  subset(!(INJURIES == 0 & FATALITIES == 0 & PropertyDamage == 0 & CropDamage == 0))
-```
-The last line above reduces the size of the dataset from `r f_comma(dim(stormData)[1], mark = ",")` to `r f_comma(dim(colsOfInterest)[1], mark = ",")` rows.
-
-A cursory look at the original `StormData` dataset revealed questionable entries in the `EVTYPE` column, e.g., leading or trailing spaces and misspellings. The `trimws()` function above takes care of the leading and trailing spaces. As to the other issues: according to the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf), there are 48 standard Event Types. However, the dataset contains `r f_comma(length(unique(colsOfInterest$EVTYPE)), mark = ",")` unique entries.
-
-Below is the table from the aforementioned NWS documentation:
-![Storm Data Event Table](images/StormDataEventTable.png)
-
-
-And here are the first 20 entries of the `EVTYPE` column with "HURRICANE" entries:
-```{r}
-kable(colsOfInterest[grep("HURRICANE*", colsOfInterest$EVTYPE), "EVTYPE"])
+head(colsOfInterest[grep("HURRICANE*", colsOfInterest), "EVTYPE"], 20)
 ```
 
 And for "HEAT" entries:
 ```{r}
-kable(colsOfInterest[grep("HEAT", colsOfInterest$EVTYPE), "EVTYPE"])
-```
-
-This means the need to clean up the dataset, by modifying the `EVTYPE` entries to conform to the standard events.
-```{r}
-
->>>>>>> 2def3206dc302a717799d8e5d7c6bc571d09663a
-```
-Standardizing the `EVTYPE` entries in stormData entails two steps:
-1. Creating a new dataset consisting of the standard event types.
-1.1 The first step in this part of the process is extracting the event types from the aforementioned PDF. The library `tabulizer` is supposed to facilitate this. Unfortunately, it wouldn't install on my R, so I had to copy-and-paste. Fortunately, the paste resulted in a single column, so it was easy to import it as a dataset.
-1.1 Next up, get rid of the C, M, and Z designations. `gsub()` will do the job.
-1. Replace the `EVTYPE`s with the standard event types.
-
-And for "HEAT" entries:
-```{r}
-<<<<<<< HEAD
-head(colsOfInterest[grep("HEAT", colsOfInterest$EVTYPE), "EVTYPE"], 20)
+head(colsOfInterest[grep("HEAT", colsOfInterest), "EVTYPE"], 20)
 ```
 
 This means the need to clean up the dataset, by modifying the `EVTYPE` entries to conform to the standard events.
@@ -174,7 +125,7 @@ Standardizing the `EVTYPE` entries in stormData entails four steps:
 
 1. Creating a new dataset consisting of the standard event types.
 
-1. Extracting the event types from the aforementioned PDF. The library `tabulizer` is supposed to facilitate this. Unfortunately, it wouldn't install on my R, so I had to copy-and-paste. Fortunately, the paste resulted in a single column, so it was easy to import it as a dataset.
+1. Extracting the event types from the aforementioned PDF. The library [`tabulizer`](https://cran.r-project.org/package=tabulizer) is supposed to facilitate this. Unfortunately, it wouldn't install on my R, so I had to copy-and-paste. Fortunately, the paste resulted in a single column, so it was easy to import it as a dataset.
 
 1. Next up, get rid of the C, M, and Z designations. `gsub()` will do the job.
 
@@ -186,17 +137,77 @@ if (!file.exists("eventTypes.text")){
 }
 ```
 
-Read in the text file and remove the designators. 
+Read in the text file, remove the designators, and convert the entries to uppercase. 
 ```{r, validEvents}
 validEvents <- read.csv("eventTypes.text", header = F)
 validEvents <- gsub(pattern = " [CMZ]$", 
                     replacement = "", 
                     x = validEvents$V1)
+validEvents <- toupper(validEvents)
 ```
+
+Check the non-standard `EVTYPE`s
+```{r}
+invalidEvents <- subset(colsOfInterest, !(colsOfInterest$EVTYPE %in% validEvents))
+invalidEvents <- unique(invalidEvents)
+sprintf("Number of unique non-standard EVTYPEs: %s.", f_comma(length(invalidEvents)))
+```
+It's not as formidable as it looks, though. Consider that there are only `r dim(unique(colsOfInterest[grep("HURRICANE", colsOfInterest), "EVTYPE"]))[1]` and `r dim(unique(colsOfInterest[grep("HEAT", colsOfInterest), "EVTYPE"]))[1]` occurrences of "HURRICANE" and "HEAT" in the reduced dataset.
 
 Modify the `EVTYPE` columns to conform with `validEvents`.
 ```{r, cleanEVTYPE}
-
+# Credit to [Mauro Taraborelli](https://www.maurotaraborelli.com/projects/reproducible-research-assignment-2/) for the grep patterns.
+colsOfInterest <- colsOfInterest %>% 
+  mutate("EVTYPE" = gsub("^(SMALL )?HAIL.*", "HAIL", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("TSTM|THUNDERSTORMS?", "THUNDERSTORM", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("STORMS?", "STORM", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("STORMS?", "STORM", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("WINDS?|WINDS?/HAIL", "WIND", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("RAINS?", "RAIN", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^TH?UN?DEE?RS?TO?RO?M ?WIND.*|^(SEVERE )?THUNDERSTORM$|^WIND STORM$|^(DRY )?MI[CR][CR]OBURST.*|^THUNDERSTORMW$", "THUNDERSTORM WIND", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^COASTAL ?STORM$|^MARINE ACCIDENT$", "MARINE THUNDERSTORM WIND", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^FLOODS?.*|^URBAN/SML STREAM FLD$|^(RIVER|TIDAL|MAJOR|URBAN|MINOR|ICE JAM|RIVER AND STREAM|URBAN/SMALL STREAM)? FLOOD(ING)?S?$|^HIGH WATER$|^URBAN AND SMALL STREAM FLOODIN$|^DROWNING$|^DAM BREAK$", "FLOOD", EVTYPE)) %>% 
+  mutate("EVTYPE" = gsub("^FLASH FLOOD.*|^RAPIDLY RISING WATER$", "FLASH FLOOD", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("WATERSPOUTS?", "WATERSPOUT", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("WEATHER/MIX", "WEATHER", EVTYPE))  %>%
+  mutate("EVTYPE" = gsub("CURRENTS?", "CURRENT", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^WINDCHILL$|^COLD.*|^LOW TEMPERATURE$|^UNSEASONABLY COLD$", "COLD/WIND CHILL", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^EXTREME WIND ?CHILL$|^(EXTENDED|EXTREME|RECORD)? COLDS?$", "EXTREME COLD/WIND CHILL", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^WILD/FOREST FIRE$|^(WILD|BRUSH|FOREST)? ?FIRES?$", "WILDFIRE", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^RAIN/SNOW$|^(BLOWING|HEAVY|EXCESSIVE|BLOWING|ICE AND|RECORD)? ?SNOWS?.*", "HEAVY SNOW", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^FOG$", "DENSE FOG", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^(GUSTY|NON-SEVERE|NON ?-?THUNDERSTORM)? ?WIND.*|^ICE/STRONG WIND$", "STRONG WIND", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("SURGE$", "SURGE/TIDE", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("CLOUDS?", "CLOUD", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^FROST[/\\]FREEZE$|^FROST$|^(DAMAGING)? ?FREEZE$|^HYP[OE]R?THERMIA.*|^ICE$|^(ICY|ICE) ROADS$|^BLACK ICE$|^ICE ON ROAD$", "FROST/FREEZE", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^GLAZE.*|^FREEZING (RAIN|DRIZZLE|RAIN/SNOW|SPRAY$)$|^WINTRY MIX$|^MIXED PRECIP(ITATION)?$|^WINTER WEATHER MIX$|^LIGHT SNOW$|^FALLING SNOW/ICE$|^SLEET.*", "SLEET", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^HURRICANE.*", "HURRICANE/TYPHOON", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^HEAT WAVES?$|^UNSEASONABLY WARM$|^WARM WEATHER$", "HEAT", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^(EXTREME|RECORD/EXCESSIVE|RECORD) HEAT$", "EXCESSIVE HEAT", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^HEAVY SURF(/HIGH SURF)?.*$|^(ROUGH|HEAVY) SEAS?.*|^(ROUGH|ROGUE|HAZARDOUS) SURF.*|^HIGH WIND AND SEAS$|^HIGH SURF.*", "HIGH SURF", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^LAND(SLUMP|SLIDE)?S?$|^MUD ?SLIDES?$|^AVALANCH?E$", "AVALANCHE", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^LAND(SLUMP|SLIDE)?S?$|^MUD ?SLIDES?$|^AVALANCH?E$", "AVALANCHE", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^UNSEASONABLY WARM AND DRY$|^DROUGHT.*|^HEAT WAVE DROUGHT$", "DROUGHT", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^TORNADO.*", "TORNADO", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^TROPICAL STORM.*", "TROPICAL STORM", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^MARINE MISHAP$|^HIGH WIND/SEAS$", "MARINE HIGH WIND", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^HIGH WIND.*", "HIGH WIND", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^HIGH SEAS$", "MARINE STRONG WIND", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^RIP CURRENT.*", "RIP CURRENT", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^WATERSPOUT.*", "WATERSPOUT", EVTYPE)) %>%
+  mutate("EVTYPE"= gsub("^EXCESSIVE RAINFALL$|^RAIN.*|^TORRENTIAL RAINFALL$|^(HEAVY|HVY)? (RAIN|MIX|PRECIPITATION).*", "HEAVY RAIN", EVTYPE)) %>%
+  mutate("EVTYPE"= gsub("^FOG.*", "FREEZING FOG", EVTYPE)) %>%
+  mutate("EVTYPE"= gsub("^WINTER STORM.*", "WINTER STORM", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^THUNDERSNOW$|^ICE STORM.*", "ICE STORM", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("WAVES?|SWELLS?", "SURF", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^LIGHTNING.*", "LIGHTNING", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^WHIRLWIND$|^GUSTNADO$|^TORNDAO$", "TORNADO", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^COASTAL FLOOD.*", "COASTAL FLOOD", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^TYPHOON", "HURRICANE/TYPHOON", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^EROSION/CSTL FLOOD$|^COASTAL FLOOD/EROSION$|^COASTAL SURGE/TIDE$", "COASTAL FLOOD", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^ASTRONOMICAL HIGH TIDE$", "STORM SURGE/TIDE", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^(GROUND)? ?BLIZZARD.*$", "BLIZZARD", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^DUST STORM.*$", "DUST STORM", EVTYPE))
 ```
 
 Now that we have standard `EVTYPE`s, we can proceed.
@@ -211,50 +222,23 @@ allDamage <- aggregate(cbind(INJURIES, FATALITIES, PropertyDamage, CropDamage) ~
 
 Examine the top rows per impact type.
 ```{r}
-head(allDamage[order(allDamage$INJURIES, decreasing = T), c("EVTYPE", "INJURIES")], 15)
-head(allDamage[order(allDamage$FATALITIES, decreasing = T), c("EVTYPE", "FATALITIES")], 15)
-head(allDamage[order(allDamage$PropertyDamage, decreasing = T), c("EVTYPE", "PropertyDamage")], 15)
-head(allDamage[order(allDamage$CropDamage, decreasing = T), c("EVTYPE", "CropDamage")], 15)
+head(allDamage[order(allDamage$INJURIES, decreasing = T), c("EVTYPE", "INJURIES")], 10)
+head(allDamage[order(allDamage$FATALITIES, decreasing = T), c("EVTYPE", "FATALITIES")], 10)
+head(allDamage[order(allDamage$PropertyDamage, decreasing = T), c("EVTYPE", "PropertyDamage")], 10)
+head(allDamage[order(allDamage$CropDamage, decreasing = T), c("EVTYPE", "CropDamage")], 10)
 ```
 ```{r}
-allDamage[grep("HURRICANE*", allDamage$EVTYPE), ]
-```
-```{r}
-allDamage[grep("*SWELLS*", allDamage$EVTYPE), ]
-=======
-# if (!file.exists("eventTypes.txt")){
-#   stop("Please create file of standard Event Types")
-# }
+topInjuries   <- head(allDamage[order(allDamage$INJURIES,decreasing = T), ], 1)
+sprintf("The event that caused the most injuries is %s, with %s injuries.", topInjuries$EVTYPE, f_comma(topInjuries$INJURIES, mark = ","))
+
+topFatalities <- head(allDamage[order(allDamage$FATALITIES,decreasing = T), ], 1)
+sprintf("The event that caused the most fatalities is %s, with %s injuries.", topFatalities$EVTYPE, f_comma(topInjuries$FATALITIES, mark = ","))
+
+topPropDamage <- head(allDamage[order(allDamage$PropertyDamage,decreasing = T), ], 1)
+  sprintf("The event that caused the most property damage is %s, with $%s worth of damage.", topPropDamage$EVTYPE, f_comma(topPropDamage$PropertyDamage, mark = ","))
+
+topCropDamage <- head(allDamage[order(allDamage$CropDamage,decreasing = T), ], 1)
+sprintf("The event that caused the most crop damage is %s, with $%s worth of damage", topCropDamage$EVTYPE, f_comma(topCropDamage$CropDamage, mark = ","))
+
 ```
 
-Read in the text file and remove the designators. 
-```{r}
-validEvents <- read.csv("eventTypes.text", header = F)
-validEvents <- gsub(pattern = " [CMZ]$", replacement = "", x = validEvents$V1)
-```
-
-
-Next, compute the total `INJURIES`, `FATALITIES`, `PropertyDamage`, and `CropDamage` per `EVTYPE`.
-```{r}
-allDamage <- aggregate(cbind(INJURIES, FATALITIES, PropertyDamage, CropDamage) ~ EVTYPE, 
-                       colsOfInterest, sum)
-```
-```{r}
-head(allDamage[order(allDamage$INJURIES, decreasing = T), c("EVTYPE", "INJURIES")], 15)
-head(allDamage[order(allDamage$FATALITIES, decreasing = T), c("EVTYPE", "FATALITIES")], 15)
-head(allDamage[order(allDamage$PropertyDamage, decreasing = T), c("EVTYPE", "PropertyDamage")], 15)
-head(allDamage[order(allDamage$CropDamage, decreasing = T), c("EVTYPE", "CropDamage")], 15)
-```
-```{r}
-allDamage[grep("HURRICANE*", allDamage$EVTYPE), ]
-```
-```{r}
-allDamage[grep("*SWELLS*", allDamage$EVTYPE), ]
-```
-
-
-```{r}
-# allDamage %>%
-#   mutate("EVTYPE" = 1)
->>>>>>> 2def3206dc302a717799d8e5d7c6bc571d09663a
-```
