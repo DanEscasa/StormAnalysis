@@ -31,6 +31,7 @@ if(!require("data.table")) {
   install.packages("data.table")
 }
 library(data.table)
+
 if(!require("knitr")) {
   install.packages("knitr")
 }
@@ -40,6 +41,11 @@ if(!require("ggplot2")) {
   install.packages("ggplot2")
 }
 library(ggplot2)
+
+if(!require("grid")) {
+  install.packages("grid")
+}
+library(grid)
 
 if(!require("gridExtra")) {
   install.packages("gridExtra")
@@ -61,13 +67,13 @@ if (!file.exists("StormData.bz2")) {
      mode     = "wb")
 }
 ```
-```{r load-data, cache=TRUE}
+```{r loadData, cache=TRUE}
 message("Loading dataset. This could take a while…")
 stormData <- fread("StormData.bz2")
 ```
 Function to convert the one-character PROPDMGEXP or CROPDMGEXP to
 a power of ten. This function will be used later to create `PropertyDamage` and `CropDamage` columns by multiplying with `PROPDMG` and `CROPDMG`.
-```{r aux-function}
+```{r damageMultiplier}
 damageMultiplier <- function(xponent) {
   return(switch(toupper(xponent),
                 "?" = 1,
@@ -88,7 +94,7 @@ damageMultiplier <- function(xponent) {
 ```
 
 Extract only the relevant columns, then exclude rows with zero values for INJURIES, FATALITIES, PROPDMG, *and* CROPDMG.
-```{r, extract-columns}
+```{r, extractColumns}
 colsOfInterest <- stormData[, c('EVTYPE', 
                                 'FATALITIES', 
                                 'INJURIES', 
@@ -102,32 +108,32 @@ colsOfInterest <- stormData[, c('EVTYPE',
 `subset()`ing reduces the size of the dataset from `r f_comma(dim(stormData)[1], mark = ",")` to `r 
 f_comma(dim(colsOfInterest)[1], mark = ",")` rows.
 
-Remove leading and trailing spaces from `EVTYPE`, create new columns for Property and Crop Damage.
-```{r, create-new-cols}
+Remove leading and trailing spaces from `EVTYPE`, create new columns for Property and Crop Damage by multiplying `PROPDMG` and `CROPDMG`, respectively, by `damageMultiplier()`
+```{r, createNewCols}
 colsOfInterest <- colsOfInterest %>%
   mutate("EVTYPE"         = toupper(trimws(colsOfInterest$EVTYPE, "b")))  %>%
   mutate("PropertyDamage" = colsOfInterest$PROPDMG * mapply(damageMultiplier, colsOfInterest$PROPDMGEXP)) %>%
   mutate("CropDamage"     = colsOfInterest$CROPDMG * mapply(damageMultiplier, colsOfInterest$CROPDMGEXP))
 ```
 
-A cursory examination of the original `StormData` dataset reveals non-standard entries in the `EVTYPE` column, e.g., misspellings or leading or trailing spaces. The `trimws()` function above takes care of the latter. As to the other issues: according to the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf), there are 48 standard Event Types. However, the dataset contains `r f_comma(length(unique(colsOfInterest$EVTYPE)), mark = ",")` unique `EVTYPE` entries.
+A cursory examination of the original `StormData` dataset reveals non-standard entries in the `EVTYPE` column, e.g., misspellings, or leading or trailing spaces. The `trimws()` function above takes care of the latter. As to the other issues: according to the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf), there are 48 standard Event Types. However, the dataset contains `r f_comma(length(unique(colsOfInterest$EVTYPE)), mark = ",")` unique `EVTYPE` entries.
 
 Below is the table from the aforementioned NWS documentation:
 ![Storm Data Event Table](images/StormDataEventTable.png)
 
 And here are the first 20 entries of the `EVTYPE` column with "HURRICANE" entries:
-```{r explore-hurricane}
+```{r exploreHurricane}
 head(colsOfInterest[grep("HURRICANE*", colsOfInterest$EVTYPE), "EVTYPE"], 20)
 ```
 
 And for "FLOOD" entries:
-```{r explore-heat}
+```{r exploreFlood}
 head(colsOfInterest[grep("*FLOOD*", colsOfInterest$EVTYPE), "EVTYPE"], 20)
 ```
 
 This points to the need to clean up the dataset, by modifying the `EVTYPE` entries to conform to the standard events.
 
-Standardizing the `EVTYPE` entries in stormData entails four steps:
+Standardizing the `EVTYPE` entries in `stormData` entails four steps:
 
 1. Creating a new dataset consisting of the standard event types.
 
@@ -153,7 +159,7 @@ validEvents <- toupper(validEvents)
 ```
 
 Check the non-standard `EVTYPE`s
-```{r check-EVTYPEs}
+```{r checkEVTYPEs}
 invalidEvents <- subset(colsOfInterest, !(colsOfInterest$EVTYPE %in% validEvents))
 invalidEvents <- unique(invalidEvents)
 sprintf("Number of unique non-standard EVTYPEs: %s.", f_comma(length(invalidEvents$EVTYPE)))
@@ -161,8 +167,8 @@ sprintf("Number of unique non-standard EVTYPEs: %s.", f_comma(length(invalidEven
 It's not as formidable as it looks, though. Consider that there are  `r dim(unique(colsOfInterest[grep("*HURRICANE*", colsOfInterest$EVTYPE)]))[1]` and `r f_comma(dim(unique(colsOfInterest[grep("*FLOOD*", colsOfInterest$EVTYPE)]))[1], mark = ",")` occurrences of "HURRICANE" and "FLOOD", respectively, in the reduced dataset. This means that those `EVTYPE`s can be transformed using only one statement each.
 
 Modify the `EVTYPE` columns to conform with `validEvents`.
+(Credit to [Mauro Taraborelli](https://www.maurotaraborelli.com/projects/reproducible-research-assignment-2/) for the grep patterns.)
 ```{r, cleanEVTYPE}
-# Thanks to <a href="https://www.maurotaraborelli.com/projects/reproducible-research-assignment-2/">Mauro Taraborelli</a> for the grep patterns.
 colsOfInterest <- colsOfInterest %>% 
   mutate("EVTYPE" = gsub("^(SMALL )?HAIL.*", "HAIL", EVTYPE)) %>%
   mutate("EVTYPE" = gsub("TSTM|THUNDERSTORMS?", "THUNDERSTORM", EVTYPE)) %>%
@@ -201,9 +207,9 @@ colsOfInterest <- colsOfInterest %>%
   mutate("EVTYPE" = gsub("^HIGH SEAS$", "MARINE STRONG WIND", EVTYPE)) %>%
   mutate("EVTYPE" = gsub("^RIP CURRENT.*", "RIP CURRENT", EVTYPE)) %>%
   mutate("EVTYPE" = gsub("^WATERSPOUT.*", "WATERSPOUT", EVTYPE)) %>%
-  mutate("EVTYPE"= gsub("^EXCESSIVE RAINFALL$|^RAIN.*|^TORRENTIAL RAINFALL$|^(HEAVY|HVY)? (RAIN|MIX|PRECIPITATION).*", "HEAVY RAIN", EVTYPE)) %>%
-  mutate("EVTYPE"= gsub("^FOG.*", "FREEZING FOG", EVTYPE)) %>%
-  mutate("EVTYPE"= gsub("^WINTER STORM.*", "WINTER STORM", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^EXCESSIVE RAINFALL$|^RAIN.*|^TORRENTIAL RAINFALL$|^(HEAVY|HVY)? (RAIN|MIX|PRECIPITATION).*", "HEAVY RAIN", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^FOG.*", "FREEZING FOG", EVTYPE)) %>%
+  mutate("EVTYPE" = gsub("^WINTER STORM.*", "WINTER STORM", EVTYPE)) %>%
   mutate("EVTYPE" = gsub("^THUNDERSNOW$|^ICE STORM.*", "ICE STORM", EVTYPE)) %>%
   mutate("EVTYPE" = gsub("WAVES?|SWELLS?", "SURF", EVTYPE)) %>%
   mutate("EVTYPE" = gsub("^LIGHTNING.*", "LIGHTNING", EVTYPE)) %>%
@@ -217,7 +223,7 @@ colsOfInterest <- colsOfInterest %>%
 ```
 
 Check the non-standard `EVTYPE`s again
-```{r recheck-EVTYPEs}
+```{r recheckEVTYPEs}
 invalidEvents <- subset(colsOfInterest, !(colsOfInterest$EVTYPE %in% validEvents))
 invalidEvents <- unique(invalidEvents)
 ```
@@ -228,7 +234,7 @@ Now that we have standard `EVTYPE`s, we can proceed.
 # Results
 
 Compute the total injuries, fatalities, property damage, and crop damage per event type.
-```{r}
+```{r aggregateDamage}
 allDamage <- aggregate(cbind(INJURIES, FATALITIES, PropertyDamage, CropDamage) ~ EVTYPE, 
                        colsOfInterest, sum)
 ```
@@ -239,46 +245,54 @@ top10Injure <- head(allDamage[order(allDamage$INJURIES, decreasing = TRUE), c("E
 top10Fatal  <- head(allDamage[order(allDamage$FATALITIES, decreasing = TRUE), c("EVTYPE", "FATALITIES")], 10)
 top10Prop   <- head(allDamage[order(allDamage$PropertyDamage, decreasing = TRUE), c("EVTYPE", "PropertyDamage")], 10)
 top10Crop   <- head(allDamage[order(allDamage$CropDamage, decreasing = TRUE), c("EVTYPE", "CropDamage")], 10)
+top10Injure
+top10Fatal
+top10Prop
+top10Crop
 ```
+Create the plots.
+```{r createPlots}
 
-In summary:
-```{r report-summary}
-topInjuries   <- head(allDamage[order(allDamage$INJURIES,decreasing = TRUE), ], 1)
-sprintf("The event that caused the most injuries is %s, with %s injuries.", topInjuries$EVTYPE, f_comma(topInjuries$INJURIES, mark = ","))
-
-topFatalities <- head(allDamage[order(allDamage$FATALITIES,decreasing = TRUE), ], 1)
-sprintf("The event that caused the most fatalities is %s, with %s fatalities.", topFatalities$EVTYPE, f_comma(topInjuries$FATALITIES, mark = ","))
-
-topPropDamage <- head(allDamage[order(allDamage$PropertyDamage,decreasing = TRUE), ], 1)
-  sprintf("The event that caused the most property damage is %s, with $%s worth of damage.", topPropDamage$EVTYPE, f_comma(topPropDamage$PropertyDamage, mark = ","))
-
-topCropDamage <- head(allDamage[order(allDamage$CropDamage,decreasing = TRUE), ], 1)
-sprintf("The event that caused the most crop damage is %s, with $%s worth of damage.", topCropDamage$EVTYPE, f_comma(topCropDamage$CropDamage, mark = ","))
-```
-```{r create-plots}
 injurePlot <- ggplot(top10Injure, aes(x = EVTYPE, y = INJURIES)) +
   geom_bar(stat = "identity", position = "dodge") +
   labs(x = "Event type") +
-  ggtitle("Total injuries by event type") +
   theme(axis.text.x = element_text(angle = 90))
 
 fatalPlot <- ggplot(top10Fatal, aes(x = EVTYPE, y = FATALITIES)) + 
   geom_bar(stat = "identity", position = "dodge") + 
   labs(x = "Event type") + 
-  ggtitle("Total fatalities by event type") + 
   theme(axis.text.x = element_text(angle = 90))
 
-cropPlot <- ggplot(top10Crop, aes(x = EVTYPE, y = CropDamage/1000000)) + 
+cropPlot <- ggplot(top10Crop, aes(x = EVTYPE, y = CropDamage/1000000000)) + 
   geom_bar(stat = "identity", position = "dodge") + 
   labs(x = "Event type", y = "Crop Damage") + 
-  ggtitle("Total damage by event type \n(in millions)") + 
   theme(axis.text.x = element_text(angle = 90))
 
-PropPlot <- ggplot(top10Prop, aes(x = EVTYPE, y = PropertyDamage/1000000)) + 
+propPlot <- ggplot(top10Prop, aes(x = EVTYPE, y = PropertyDamage/1000000000)) + 
   geom_bar(stat = "identity", position = "dodge") + 
   labs(x = "Event type", y = "Property Damage") + 
-  ggtitle("Total damage by event type\n (in millions)") + 
   theme(axis.text.x = element_text(angle = 90))
-grid.arrange(injurePlot, fatalPlot, nrow = 1)
-grid.arrange(cropPlot, PropPlot, nrow = 1)
+
+grid.arrange(injurePlot, fatalPlot, ncol = 2,
+             top = textGrob("Total adverse health effects by event type",
+                            gp = gpar(fontsize = 20, col = "red", fontface = "bold")))
+
+grid.arrange(cropPlot, propPlot, ncol = 2,
+             top = textGrob("Economic impact by event type (in billion $)",
+                            gp = gpar(fontsize = 20, col = "red", fontface = "bold")))
+```
+
+In summary:
+```{r reportSummary}
+sprintf("The event that caused the most injuries is %s, with %s injuries.", 
+        top10Injure[1, ]$EVTYPE, f_comma(top10Injure[1, ]$INJURIES, mark = ","))
+
+sprintf("The event that caused the most fatalities is %s, with %s fatalities.", 
+        top10Fatal[1, ]$EVTYPE, f_comma(top10Fatal[1, ]$FATALITIES, mark = ","))
+
+sprintf("The event that caused the most property damage is %s, with $%s worth of damage.", 
+          top10Prop[1, ]$EVTYPE, f_comma(top10Prop[1, ]$PropertyDamage, mark = ","))
+
+sprintf("The event that caused the most crop damage is %s, with $%s worth of damage.", 
+        top10Crop [1, ]$EVTYPE, f_comma(top10Crop [1, ]$CropDamage, mark = ","))
 ```
