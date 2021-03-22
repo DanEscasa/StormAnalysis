@@ -5,6 +5,7 @@ date: "3/2/2021"
 output:
   html_document:
     df_print: paged
+    number_sections: true
   pdf_document: default
 ---
 # Synopsis
@@ -14,6 +15,8 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 This section contains the R code to load the libraries, open the dataset, examine the dataset's `EVTYPE` column, and correct those as necessary.
+
+## Load the required libraries
 
 First install the required libraries if needed, and load them.
 ```{r, loadLibs, results='hide'} 
@@ -52,12 +55,17 @@ if(!require("gridExtra")) {
 }
 library(gridExtra)
 
+if(!require("cowplot")) {
+  install.packages("cowplot")
+}
+library(cowplot)
+
 if(!require("numform")) {
   install.packages("numform")
 }
 library(numform)
 ```
-Open the database, downloading it if it isn't in the current directory.
+## Load the dataset
 ```{r}
 if (!file.exists("StormData.bz2")) {
      message("Downloading dataset")
@@ -71,8 +79,26 @@ if (!file.exists("StormData.bz2")) {
 message("Loading dataset. This could take a while…")
 stormData <- fread("StormData.bz2")
 ```
+
+## Reduce the dataframe
+
+Extract only the relevant columns, then exclude rows with zero values for INJURIES, FATALITIES, PROPDMG, *and* CROPDMG.
+```{r, extractColumns}
+colsOfInterest <- stormData[, c('EVTYPE', 
+                                'FATALITIES', 
+                                'INJURIES', 
+                                'PROPDMG', 
+                                'PROPDMGEXP', 
+                                'CROPDMG', 
+                                'CROPDMGEXP')] %>%
+                                subset(!(INJURIES == 0 & FATALITIES == 0 & PROPDMG == 0 & CROPDMG == 0))
+```
+
+`subset()`ing reduces the size of the dataset from `r f_comma(dim(stormData)[1], mark = ",")` to `r 
+f_comma(dim(colsOfInterest)[1], mark = ",")` rows.
+
 Function to convert the one-character PROPDMGEXP or CROPDMGEXP to
-a power of ten. This function will be used later to create `PropertyDamage` and `CropDamage` columns by multiplying with `PROPDMG` and `CROPDMG`.
+a factor of ten. This function will be used in the next code chunk to create `PropertyDamage` and `CropDamage`.
 ```{r damageMultiplier}
 damageMultiplier <- function(xponent) {
   return(switch(toupper(xponent),
@@ -93,21 +119,6 @@ damageMultiplier <- function(xponent) {
 }
 ```
 
-Extract only the relevant columns, then exclude rows with zero values for INJURIES, FATALITIES, PROPDMG, *and* CROPDMG.
-```{r, extractColumns}
-colsOfInterest <- stormData[, c('EVTYPE', 
-                                'FATALITIES', 
-                                'INJURIES', 
-                                'PROPDMG', 
-                                'PROPDMGEXP', 
-                                'CROPDMG', 
-                                'CROPDMGEXP')] %>%
-                                subset(!(INJURIES == 0 & FATALITIES == 0 & PROPDMG == 0 & CROPDMG == 0))
-```
-
-`subset()`ing reduces the size of the dataset from `r f_comma(dim(stormData)[1], mark = ",")` to `r 
-f_comma(dim(colsOfInterest)[1], mark = ",")` rows.
-
 Remove leading and trailing spaces from `EVTYPE`, create new columns for Property and Crop Damage by multiplying `PROPDMG` and `CROPDMG`, respectively, by `damageMultiplier()`
 ```{r, createNewCols}
 colsOfInterest <- colsOfInterest %>%
@@ -115,6 +126,7 @@ colsOfInterest <- colsOfInterest %>%
   mutate("PropertyDamage" = colsOfInterest$PROPDMG * mapply(damageMultiplier, colsOfInterest$PROPDMGEXP)) %>%
   mutate("CropDamage"     = colsOfInterest$CROPDMG * mapply(damageMultiplier, colsOfInterest$CROPDMGEXP))
 ```
+## Clean up the `EVTYPE` entries
 
 A cursory examination of the original `StormData` dataset reveals non-standard entries in the `EVTYPE` column, e.g., misspellings, or leading or trailing spaces. The `trimws()` function above takes care of the latter. As to the other issues: according to the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf), there are 48 standard Event Types. However, the dataset contains `r f_comma(length(unique(colsOfInterest$EVTYPE)), mark = ",")` unique `EVTYPE` entries.
 
@@ -233,66 +245,95 @@ Now that we have standard `EVTYPE`s, we can proceed.
 
 # Results
 
-Compute the total injuries, fatalities, property damage, and crop damage per event type.
+## Compute effects of weather disturbances per event type.
 ```{r aggregateDamage}
 allDamage <- aggregate(cbind(INJURIES, FATALITIES, PropertyDamage, CropDamage) ~ EVTYPE, 
                        colsOfInterest, sum)
 ```
 
-Examine the top rows per impact type.
-```{r top10}
-top10Injure <- head(allDamage[order(allDamage$INJURIES, decreasing = TRUE), c("EVTYPE", "INJURIES")], 10)
-top10Fatal  <- head(allDamage[order(allDamage$FATALITIES, decreasing = TRUE), c("EVTYPE", "FATALITIES")], 10)
-top10Prop   <- head(allDamage[order(allDamage$PropertyDamage, decreasing = TRUE), c("EVTYPE", "PropertyDamage")], 10)
-top10Crop   <- head(allDamage[order(allDamage$CropDamage, decreasing = TRUE), c("EVTYPE", "CropDamage")], 10)
-top10Injure
-top10Fatal
-top10Prop
-top10Crop
+Examine the top rows per event type.
+```{r topRows}
+nTopRows <- 10
+topInjure <- head(allDamage[order(allDamage$INJURIES, decreasing = TRUE), 
+                            c("EVTYPE", "INJURIES")], nTopRows)
+topFatal  <- head(allDamage[order(allDamage$FATALITIES, decreasing = TRUE), 
+                            c("EVTYPE", "FATALITIES")], nTopRows)
+topProp   <- head(allDamage[order(allDamage$PropertyDamage, decreasing = TRUE), 
+                            c("EVTYPE", "PropertyDamage")], nTopRows)
+topCrop   <- head(allDamage[order(allDamage$CropDamage, decreasing = TRUE), 
+                            c("EVTYPE", "CropDamage")], nTopRows)
+topInjure
+topFatal
+topProp
+topCrop
 ```
-Create the plots.
-```{r createPlots}
+## Create the plots
+### Plot for health impact
+```{r plotHealth}
 
-injurePlot <- ggplot(top10Injure, aes(x = EVTYPE, y = INJURIES)) +
-  geom_bar(stat = "identity", position = "dodge") +
+wfd <- structure(list(topInjure$EVTYPE, 
+                      topInjure$INJURIES, 
+                      topFatal$FATALITIES), 
+                 row.names = c(NA, nTopRows), 
+                 class = "data.frame", 
+                 .Names = c("EVTYPE", "injuries", "fatalities"))
+
+# Scale the damage columns by log base 2
+wfd$injuries   <- sapply(wfd$injuries, log2) 
+wfd$fatalities <- sapply(wfd$fatalities, log2)
+
+ggplot(wfd, aes(x = EVTYPE)) +
+  geom_col(aes(y = injuries), fill = "blue", position = position_nudge(x = -0.5), width = 0.5) +
+  geom_col(aes(y = fatalities), fill = "red", width = 0.5) +
+  scale_y_continuous(name     = "Injuries", 
+                     sec.axis = sec_axis(~., name = "Fatalities")) + 
   labs(x = "Event type") +
-  theme(axis.text.x = element_text(angle = 90))
-
-fatalPlot <- ggplot(top10Fatal, aes(x = EVTYPE, y = FATALITIES)) + 
-  geom_bar(stat = "identity", position = "dodge") + 
-  labs(x = "Event type") + 
-  theme(axis.text.x = element_text(angle = 90))
-
-cropPlot <- ggplot(top10Crop, aes(x = EVTYPE, y = CropDamage/1000000000)) + 
-  geom_bar(stat = "identity", position = "dodge") + 
-  labs(x = "Event type", y = "Crop Damage") + 
-  theme(axis.text.x = element_text(angle = 90))
-
-propPlot <- ggplot(top10Prop, aes(x = EVTYPE, y = PropertyDamage/1000000000)) + 
-  geom_bar(stat = "identity", position = "dodge") + 
-  labs(x = "Event type", y = "Property Damage") + 
-  theme(axis.text.x = element_text(angle = 90))
-
-grid.arrange(injurePlot, fatalPlot, ncol = 2,
-             top = textGrob("Total adverse health effects by event type",
-                            gp = gpar(fontsize = 20, col = "red", fontface = "bold")))
-
-grid.arrange(cropPlot, propPlot, ncol = 2,
-             top = textGrob("Economic impact by event type (in billion $)",
-                            gp = gpar(fontsize = 20, col = "red", fontface = "bold")))
+  ggtitle("Health Effects by Event Type (scaled log base 2)") +
+  theme(plot.title = element_text(hjust = 0.75)) +
+  theme(axis.title.x.top    = element_text(color = "red"),
+        axis.title.x.bottom = element_text(color = "blue")) +
+  coord_flip()
 ```
 
-In summary:
+### Plot economic effects
+```{r plotEcon}
+wfd <- structure(list(topCrop$EVTYPE, 
+                      topCrop$CropDamage, 
+                      topProp$PropertyDamage), 
+                 row.names = c(NA, nTopRows), 
+                 class = "data.frame", 
+                 .Names = c("EVTYPE", "cropDamage", "propertyDamage"))
+
+logBase <- 2
+# Scale the damage columns by log base 2
+wfd$cropDamage     <- sapply(wfd$cropDamage, log2)
+wfd$propertyDamage <- sapply(wfd$propertyDamage, log2)
+
+ggplot(wfd, aes(x = EVTYPE)) +
+        geom_col(aes(y = cropDamage), fill = "blue", position = position_nudge(x = -0.5), width = 0.5) +
+        geom_col(aes(y = propertyDamage), fill = "red", width = 0.5) +
+        scale_y_continuous(name     = "Property Damage", 
+                           sec.axis = sec_axis(~., name = "Crop Damage")) + 
+  labs(x = "Event type") +
+  ggtitle("Economic Costs by Event Type (in $, scaled log base 2)") +
+  theme(plot.title = element_text(hjust = 0.75)) +
+  theme(axis.title.x.bottom  = element_text(color = "blue"),
+        axis.title.x.top     = element_text(color = "red")) +   coord_flip()
+```
+
+
+## Summary
 ```{r reportSummary}
 sprintf("The event that caused the most injuries is %s, with %s injuries.", 
-        top10Injure[1, ]$EVTYPE, f_comma(top10Injure[1, ]$INJURIES, mark = ","))
+        topInjure[1, ]$EVTYPE, f_comma(topInjure[1, ]$INJURIES, mark = ","))
 
 sprintf("The event that caused the most fatalities is %s, with %s fatalities.", 
-        top10Fatal[1, ]$EVTYPE, f_comma(top10Fatal[1, ]$FATALITIES, mark = ","))
+        topFatal[1, ]$EVTYPE, f_comma(topFatal[1, ]$FATALITIES, mark = ","))
 
 sprintf("The event that caused the most property damage is %s, with $%s worth of damage.", 
-          top10Prop[1, ]$EVTYPE, f_comma(top10Prop[1, ]$PropertyDamage, mark = ","))
+          topProp[1, ]$EVTYPE, f_comma(topProp[1, ]$PropertyDamage, mark = ","))
 
 sprintf("The event that caused the most crop damage is %s, with $%s worth of damage.", 
-        top10Crop [1, ]$EVTYPE, f_comma(top10Crop [1, ]$CropDamage, mark = ","))
+        topCrop [1, ]$EVTYPE, f_comma(topCrop [1, ]$CropDamage, mark = ","))
 ```
+# Further questions
