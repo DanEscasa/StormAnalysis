@@ -1,13 +1,14 @@
 ---
 title: "Storm Data Analysis"
 author: "Daniel Escasa"
-date: "3/2/2021"
+date: "3/26/2021"
 output:
   html_document:
     df_print: paged
     number_sections: true
   pdf_document: default
 ---
+
 # Synopsis
 
 When natural disasters strike, institutions in charge of emergency mitigation need to know the impact of those events. The [National Oceanic and Atmospheric Administration](https://www.noaa.gov/) provides data that tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage. The events in the database start in the year 1950 and end in November 2011.
@@ -21,8 +22,6 @@ knitr::opts_chunk$set(echo = TRUE)
 This section contains the R code to load the libraries, open the dataset, examine the dataset's `EVTYPE` column, and correct those as necessary.
 
 ## Load the required libraries
-
-First install the required libraries if needed, and load them.
 ```{r, loadLibs, results='hide'} 
 
 if(!require("dplyr")) {
@@ -75,6 +74,7 @@ if(!require("gt")) {
 library(gt)
 ```
 ## Load the dataset
+Download from the Internet if it's not in the current working directory.
 ```{r}
 if (!file.exists("StormData.bz2")) {
      message("Downloading dataset")
@@ -94,14 +94,18 @@ stormData <- fread("StormData.bz2")
 The dataset contains `r f_comma(dim(stormData)[1])` observations of `r f_comma(dim(stormData)[2])` variables, only the following variables being of interest:
 
 `r metaData <- data.frame(c("EVTYPE", "INJURIES", "FATALITIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP"), 
-c("type of the weather disturbance", "number of persons injured as a result of the weather disturbance", "number of persons killed as a result of the weather disturbance", "damage to property resulting from the weather disturbance, divided by a power of 10", "character representing the power of 10 to multiply with PROPDMG to get net property damage", "damage to corps as a result of the weather disturbance, divided by a power of 10", "character representing the power of 10 to multiply with CROPDMG to get net property damage"))
+c("Type of the weather disturbance", "Number of persons injured as a result of the weather disturbance", "Number of persons killed as a result of the weather disturbance", "Damage to property resulting from the weather disturbance, divided by a power of 10", "Character representing the power of 10 to multiply with PROPDMG to get net property damage", "Damage to crops as a result of the weather disturbance, divided by a power of 10", "Character representing the power of 10 to multiply with CROPDMG to get net crop damage"))
+
 colnames(metaData) <- c("Variable", "Description")
+
 metaData   %>% 
       gt() %>%
-      tab_style(cell_text(align = "left"),
-                locations = cells_body())  `
+      tab_style(style = list(cell_borders(sides = "all"),
+                             cell_text(align = "left")),
+                locations = cells_body())  
+`
 
-Needing only the above relevant columns, we extract only those. While we're at it, let's also exclude rows with zero values for INJURIES, FATALITIES, PROPDMG, *and* CROPDMG. Even if they don't contribute to the results, the computer would still need processing resources to add those zeroes.
+Needing only the above relevant columns, we extract only those. While we're at it, let's also exclude rows with zero values for INJURIES, FATALITIES, PROPDMG, *and* CROPDMG. Even if they don't contribute to the results, the computer would still need processing resources to add or multiply those zeroes.
 ```{r, extractColumns}
 colsOfInterest <- stormData[, c('EVTYPE', 
                                 'FATALITIES', 
@@ -116,8 +120,8 @@ colsOfInterest <- stormData[, c('EVTYPE',
 `subset()`ing reduces the size of the dataset from `r f_comma(dim(stormData)[1], mark = ",")` to `r 
 f_comma(dim(colsOfInterest)[1], mark = ",")` rows.
 
-This function converts the one-character PROPDMGEXP or CROPDMGEXP to
-a factor of ten. It will be used in the next code chunk to create `PropertyDamage` and `CropDamage`.
+This code chunk defines a function that converts the one-character PROPDMGEXP or CROPDMGEXP to
+a factor of ten. It will be used in the next code chunk to create `PropertyDamage` and `CropDamage` columns.
 ```{r damageMultiplier}
 damageMultiplier <- function(xponent) {
   return(switch(toupper(xponent),
@@ -195,7 +199,7 @@ invalidEvents <- subset(colsOfInterest, !(colsOfInterest$EVTYPE %in% validEvents
 invalidEvents <- unique(invalidEvents)
 sprintf("Number of unique non-standard EVTYPEs: %s.", f_comma(length(invalidEvents$EVTYPE)))
 ```
-It's not as formidable as it looks, though. Consider that there are  `r dim(unique(colsOfInterest[grep("*HURRICANE*", colsOfInterest$EVTYPE)]))[1]` and `r f_comma(dim(unique(colsOfInterest[grep("*FLOOD*", colsOfInterest$EVTYPE)]))[1], mark = ",")` occurrences of "HURRICANE" and "FLOOD", respectively, in the reduced dataset. This means that those `EVTYPE`s can be transformed using only one statement each. Which is not to say the transformation will be trivial. We have to examine *all* the events in `EVTYPE`. Fortunately, [Mauro Taraborelli](https://www.maurotaraborelli.com/projects/reproducible-research-assignment-2/) has provided the necessary grep patterns.
+It's not as formidable as it looks, though. Consider that there are  `r dim(unique(colsOfInterest[grep("*HURRICANE*", colsOfInterest$EVTYPE)]))[1]` and `r f_comma(dim(unique(colsOfInterest[grep("*FLOOD*", colsOfInterest$EVTYPE)]))[1], mark = ",")` occurrences of "HURRICANE" and "FLOOD", respectively, in the reduced dataset. This means that those `EVTYPE`s can be transformed using only one statement each. Which is not to say the transformation will be trivial. We still have to examine *all* the events in `EVTYPE`. Fortunately, [Mauro Taraborelli](https://www.maurotaraborelli.com/projects/reproducible-research-assignment-2/) has provided the necessary grep patterns.
 
 Modify the `EVTYPE` columns to conform with `validEvents`.
 ```{r, cleanEVTYPE, cache=TRUE}
@@ -290,15 +294,18 @@ gtInjure <- gtInjure %>%
   cols_label(EVTYPE = "Event type", INJURIES = "Injuries") %>%
   fmt_number(columns = "INJURIES", 
              sep_mark = ",", drop_trailing_zeros = TRUE)
+
 gtFatal <- gtFatal  %>%
   tab_header("Top Causes of Fatalities") %>%
   cols_label(EVTYPE = "Event type", FATALITIES = "Fatalities") %>%
   fmt_number(columns = "FATALITIES", 
              sep_mark = ",", drop_trailing_zeros = TRUE)
+
 gtProp <- gtProp  %>%
   tab_header("Top Causes of Property Damage") %>%
   cols_label(EVTYPE = "Event type", PropertyDamage = "Property Damage") %>%
   fmt_currency(columns = "PropertyDamage", currency = "USD", drop_trailing_dec_mark = TRUE)
+
 gtCrop <- gtCrop %>%
   tab_header("Top causes of Crop Damage") %>%
   cols_label(EVTYPE = "Event type", CropDamage = "Crop Damage") %>%
@@ -310,7 +317,7 @@ gtCrop
 ```
 ## Create the plots
 ### Plot for health impact
-The `Injuries`, `Fatalities`, `Crop Damage`, and `Property Damage` had to be scaled by log base 2 to have a more manageable plot. Without the scaling, the bar for top contributor to each of those factors would be 10 times higher than the lower half. Unfortunately, this does mean that, e.g., the crop damage for drought and flood would look equal since their logarithms base 2 are `r log2(topCrop[1, 2])` and `r log2(topCrop[2, 2])` respectively.
+The `Injuries`, `Fatalities`, `Crop Damage`, and `Property Damage` columns had to be scaled by log base 2 to have a more manageable plot. Without the scaling, the bar for top contributor to each of those factors would be 10 times higher than the lower half. Unfortunately, this does mean that, e.g., the crop damage for drought and flood would look equal since their logarithms base 2 are `r log2(topCrop[1, 2])` and `r log2(topCrop[2, 2])` respectively, which is why I invite the reader to also refer to the tables above,
 ```{r plotHealth}
 wfd <- structure(list(topInjure$EVTYPE, 
                       topInjure$INJURIES, 
@@ -321,19 +328,21 @@ wfd <- structure(list(topInjure$EVTYPE,
 
 logBase <- 2
 # Scale the health columns by log base `logBase`
-wfd$injuries   <- sapply(wfd$injuries, function (x) log(x, logBase)) 
+wfd$injuries   <- sapply(wfd$injuries, function (x) log(x, logBase))
 wfd$fatalities <- sapply(wfd$fatalities, function (x) log(x, logBase))
 
+plotTitle <- paste("Health Costs by Event Type (scaled log ", paste0(toString(logBase), ")"))
+
 ggplot(wfd, aes(x = EVTYPE)) +
-  geom_col(aes(y = injuries), fill = "blue",
+  geom_col(aes(y    = injuries), fill = "blue",
            position = position_nudge(x = -0.5), 
-           width = 0.5) +
+           width    = 0.5) +
   geom_col(aes(y = fatalities), fill = "red", width = 0.5) +
   scale_y_continuous(name     = "Injuries", 
                      sec.axis = sec_axis(~., name = "Fatalities")) + 
   labs(x = "Event type") +
-  ggtitle("Health Effects by Event Type (scaled log base 2)") +
-  theme(plot.title = element_text(hjust = 0.75)) +
+  ggtitle(plotTitle) +
+  theme(plot.title          = element_text(hjust = 0.75)) +
   theme(axis.title.x.top    = element_text(color = "red"),
         axis.title.x.bottom = element_text(color = "blue")) +
   coord_flip()
@@ -363,22 +372,39 @@ ggplot(wfd, aes(x = EVTYPE)) +
   ggtitle(plotTitle) +
   theme(plot.title = element_text(hjust = 0.75)) +
   theme(axis.title.x.bottom  = element_text(color = "blue"),
-        axis.title.x.top     = element_text(color = "red")) +   coord_flip()
+        axis.title.x.top     = element_text(color = "red")) +
+  coord_flip()
 ```
 
 
 ## Summary
 ```{r reportSummary}
-sprintf("The event that caused the most injuries is %s, with %s injuries.", 
-        topInjure[1, ]$EVTYPE, f_comma(topInjure[1, ]$INJURIES, mark = ","))
+allTop <- data.frame(c("Injuries", "Fatalities", "Property Damage", "Crop Damage"),
+                     c(topInjure[1, ]$EVTYPE, topFatal[1, ]$EVTYPE, topProp[1, ]$EVTYPE, topCrop[1, ]$EVTYPE),
+                     c(f_comma(topInjure[1, ]$INJURIES), f_comma(topFatal[1, ]$FATALITIES), 
+                       f_comma(topProp[1, ]$PropertyDamage %/% 1000000), f_comma(topCrop[1, ]$CropDamage  %/% 1000000)))
 
-sprintf("The event that caused the most fatalities is %s, with %s fatalities.", 
-        topFatal[1, ]$EVTYPE, f_comma(topFatal[1, ]$FATALITIES, mark = ","))
+colnames(allTop) <- c("Indicator", "Event", "Cost")
 
-sprintf("The event that caused the most property damage is %s, with $%s worth of damage.", 
-          topProp[1, ]$EVTYPE, f_comma(topProp[1, ]$PropertyDamage, mark = ","))
-
-sprintf("The event that caused the most crop damage is %s, with $%s worth of damage.", 
-        topCrop [1, ]$EVTYPE, f_comma(topCrop [1, ]$CropDamage, mark = ","))
+allTop %>%
+  gt() %>%
+  tab_header("Summary of Damage from Weather Disturbances") %>%
+  cols_align("left", columns = c("Indicator", "Event")) %>%
+  cols_align("right", columns = "Cost") %>%
+  tab_footnote(footnote = "number of persons",
+               locations = cells_body(columns = "Cost", rows = 1:2)) %>%
+  tab_footnote(footnote = "in million US$",
+               locations = cells_body(columns = "Cost", rows = 3:4)) %>%
+  tab_style(style =  cell_borders(sides = "all"),
+            locations = cells_body())
 ```
-# Further questions
+# What's next?
+I hope you learned from this paper as much as I have. The NOAA dataset has much potential in terms of learning about the health and economic consequences of weather disturbances. Some things I wish I could study further:
+
++   Are tornadoes always the most disruptive for physical health?
++   Are floods and droughts always the most destructive for property and crops, respectively?
+* What are the yearly trends for the three most destructive events?
+* What are the most destructive events per region in the continental US?
++   As a corollary, what are the safest and the most vulnerable regions in the US?
+
+The source for this document is available at [github](https://github.com/DanEscasa/StormAnalysis)
